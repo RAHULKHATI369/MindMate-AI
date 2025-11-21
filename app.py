@@ -1,54 +1,54 @@
-# backend/app.py
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-from dotenv import load_dotenv
 import os
-from pathlib import Path
+from dotenv import load_dotenv
 
+# Google Cloud imports
+from google.cloud import storage
+from google.cloud import aiplatform
+
+# Load environment variables
 load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+PROJECT_ID = os.getenv("PROJECT_ID")
+REGION = os.getenv("REGION")
+BUCKET_NAME = os.getenv("BUCKET_NAME")
 
-# local imports
-from emotion_model import get_pipelines, analyze_text
-from scoring import compute_mental_health_score
-from llm_logic import get_assistant_message
-from database import init_db, save_session, recent_negative_count
+# Initialize Flask app
+app = Flask(__name__)
+CORS(app)
 
-BASE_DIR = Path(__file__).resolve().parent
-FRONTEND_DIR = BASE_DIR.parent / "frontend"  # dev uses vite; production serve from build
+# Initialize Google Cloud Storage client
+storage_client = storage.Client(project=PROJECT_ID)
+bucket = storage_client.bucket(BUCKET_NAME)
 
-app = Flask(__name__, static_folder=str(FRONTEND_DIR / "dist"), static_url_path="/")
-CORS(app)  # Allow cross-origin dev requests
+# Initialize Vertex AI
+aiplatform.init(project=PROJECT_ID, location=REGION)
 
-# initialize DB and pipelines
-init_db()
-sentiment_pipeline = get_pipelines()
+# Example endpoint to check backend
+@app.route("/ping", methods=["GET"])
+def ping():
+    return jsonify({"status": "MindMate AI backend is running!"})
 
-@app.route("/")
-def index():
-    # In production, serve built frontend (frontend/dist). In dev, Vite dev server serves UI.
-    if (FRONTEND_DIR / "dist" / "index.html").exists():
-        return send_from_directory(str(FRONTEND_DIR / "dist"), 'index.html')
-    return "Frontend not built. During development run `npm run dev` in frontend/"
+# Example endpoint to list files in your bucket
+@app.route("/list_files", methods=["GET"])
+def list_files():
+    blobs = bucket.list_blobs()
+    files = [blob.name for blob in blobs]
+    return jsonify({"files": files})
 
-@app.route("/api/analyze", methods=["POST"])
-def analyze():
-    data = request.get_json() or {}
-    user_text = data.get("text", "")
-    if not isinstance(user_text, str) or not user_text.strip():
-        return jsonify({"error": "empty text"}), 400
+# Example endpoint for AI response (replace with Google PaLM API call)
+@app.route("/get_response", methods=["POST"])
+def get_response():
+    data = request.json
+    user_message = data.get("message", "")
 
-    analysis = analyze_text(user_text, sentiment_pipeline)
-    history_neg = recent_negative_count(10)
-    score = compute_mental_health_score(analysis, history_neg)
-    reply = get_assistant_message(user_text, analysis, score)
-    save_session(user_text, analysis.get('emotion'), analysis.get('sentiment_label'), score, reply)
+    # Here you can call Google PaLM/Vertex AI LLM API
+    # Example placeholder response
+    ai_response = f"Hello! You said: {user_message}"
 
-    return jsonify({
-        "analysis": analysis,
-        "score": score,
-        "reply": reply
-    })
+    return jsonify({"response": ai_response})
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    # Run on port 8080 for Cloud Run compatibility
+    app.run(host="0.0.0.0", port=8080, debug=True)

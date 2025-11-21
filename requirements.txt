@@ -1,7 +1,8 @@
 flask
 flask-cors
 python-dotenv
-openai
+google-cloud-storage
+google-cloud-aiplatform
 transformers
 sentencepiece
 torch
